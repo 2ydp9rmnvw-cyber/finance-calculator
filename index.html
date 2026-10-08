@@ -77,7 +77,7 @@ td.calc{font-variant-numeric:tabular-nums;white-space:nowrap}
 
 <section class="panel">
  <div class="panelhead">
-   <div><b>产品明细</b><div class="muted">计算日期留空时自动使用今天 · 编号从小到大排序</div></div>
+   <div><b>产品明细</b><div class="muted">计算日期留空时自动使用今天；购买日期需早于计算日期；购买日期需早于计算日期 · 编号从小到大排序</div></div>
    <input id="search" class="search" placeholder="搜索银行 / 产品名称">
  </div>
  <div class="tablewrap">
@@ -108,16 +108,19 @@ function load(){ try{ const x=JSON.parse(localStorage.getItem(KEY)); return Arra
 function save(){ localStorage.setItem(KEY,JSON.stringify(rows)); }
 function num(v){ const n=parseFloat(v); return Number.isFinite(n)?n:0; }
 function daysBetween(a,b){
- if(!a||!b) return 0;
- const x=new Date(a+'T00:00:00'), y=new Date(b+'T00:00:00');
- return Math.max(0,Math.round((y-x)/86400000));
+ if(!a||!b) return null;
+ const x=Date.parse(a+'T00:00:00Z'), y=Date.parse(b+'T00:00:00Z');
+ if(!Number.isFinite(x)||!Number.isFinite(y))return null;
+ return Math.round((y-x)/86400000);
 }
 function calc(r){
  const d=daysBetween(r.purchaseDate,r.calcDate||today()), p=num(r.principal), c=num(r.current), profit=c-p;
- const annual=(d>0&&p!==0)?profit/p/d*365:null;
- const per10k=(d>0&&p!==0)?profit/p*10000/d:null;
+ const annual=(d!==null&&d>0&&p>0)?profit/p/d*365:null;
+ const per10k=(d!==null&&d>0&&p>0)?profit/p*10000/d:null;
  return {d,p,c,profit,annual,per10k};
 }
+function daysText(d){return d===null?'—':d<0?'日期有误':String(d)}
+function daysText(d){return d===null?'—':d<0?'日期有误':String(d)}
 function money(v){return new Intl.NumberFormat('zh-CN',{style:'currency',currency:'CNY',minimumFractionDigits:2}).format(v||0)}
 function pct(v){return v==null?'—':(v*100).toFixed(2)+'%'}
 function fixed(v){return v==null?'—':v.toFixed(4)}
@@ -141,11 +144,11 @@ function update(i,key,val){
  if(['term','principal','current'].includes(key)) rows[i][key]=val===''?'':Number(val);
  else rows[i][key]=val;
  save();
- // 输入期间只更新计算值，不重建输入框，保证 iOS 键盘与中文输入法连续输入。
+ // 所有产品共用一套计算规则。输入时仅更新结果单元格，保留 iOS 输入焦点。
  const c=calc(rows[i]);
  document.querySelectorAll(`[data-record="${i}"]`).forEach(el=>{
    const write=(name,value)=>{ const t=el.querySelector(`[data-result="${name}"]`);if(t){t.textContent=value;if(name!=='days')t.className=(el.tagName==='TR'?'calc ':'')+cls(name==='annual'?(c.annual||0):(c.per10k||0));}};
-   write('days',c.d||'—');write('annual',pct(c.annual));write('per10k',fixed(c.per10k));
+   write('days',daysText(c.d));write('annual',pct(c.annual));write('per10k',fixed(c.per10k));
    const nm=el.querySelector('.itemname');if(nm)nm.textContent=rows[i].fundName||'未命名产品';
    const bd=el.querySelector('.badge');if(bd)bd.textContent=rows[i].term?rows[i].term+'天':'灵活期限';
  });
@@ -154,7 +157,7 @@ function update(i,key,val){
 }
 function del(i){ if(confirm('删除这条产品记录？')){rows.splice(i,1);save();render();}}
 function add(){
- rows.unshift({id:'',purchaseDate:today(),institution:'邮储银行',fundName:'',term:'',calcDate:'',principal:10000,current:10000});
+ rows.unshift({id:'',purchaseDate:'',institution:'邮储银行',fundName:'',term:'',calcDate:today(),principal:10000,current:10000});
  save(); render(); window.scrollTo({top:0,behavior:'smooth'});
 }
 
@@ -181,7 +184,7 @@ function render(){
    <td><input value="${esc(r.fundName)}" oninput="update(${i},'fundName',this.value)"></td>
    <td><input type="number" inputmode="numeric" value="${esc(r.term)}" oninput="update(${i},'term',this.value)"></td>
    <td><input type="date" value="${esc(r.calcDate)}" onchange="update(${i},'calcDate',this.value)"></td>
-   <td class="calc" data-result="days">${c.d||'—'}</td>
+   <td class="calc" data-result="days">${daysText(c.d)}</td>
    <td><input type="number" inputmode="decimal" step="0.01" value="${esc(r.principal)}" oninput="update(${i},'principal',this.value)"></td>
    <td><input type="number" inputmode="decimal" step="0.01" value="${esc(r.current)}" oninput="update(${i},'current',this.value)"></td>
    <td class="calc ${cls(c.annual||0)}" data-result="annual">${pct(c.annual)}</td>
@@ -204,7 +207,7 @@ function render(){
    </div>
    <div class="field" style="margin-top:8px"><label>基金名称</label><input value="${esc(r.fundName)}" oninput="update(${i},'fundName',this.value)"></div>
    <div class="result">
-    <div><small>持有天数</small><b data-result="days">${c.d||'—'}</b></div>
+    <div><small>持有天数</small><b data-result="days">${daysText(c.d)}</b></div>
     <div><small>估算年化</small><b class="${cls(c.annual||0)}" data-result="annual">${pct(c.annual)}</b></div>
     <div><small>万份收益</small><b class="${cls(c.per10k||0)}" data-result="per10k">${fixed(c.per10k)}</b></div>
    </div>
