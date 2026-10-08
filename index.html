@@ -1,0 +1,213 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover,user-scalable=no">
+<meta name="theme-color" content="#0b6bcb">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="理财收益">
+<link rel="manifest" href="manifest.webmanifest">
+<title>理财年化收益计算器</title>
+<style>
+:root{--bg:#f5f7fb;--card:#fff;--text:#17202a;--sub:#6b7280;--line:#e5e7eb;--blue:#0b6bcb;--green:#0b8f55;--red:#c0392b;--amber:#a66900}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--text);font-family:-apple-system,BlinkMacSystemFont,"SF Pro Text","PingFang SC","Helvetica Neue",Arial,sans-serif}
+.app{max-width:1180px;margin:auto;padding:calc(14px + env(safe-area-inset-top)) 14px calc(30px + env(safe-area-inset-bottom))}
+header{display:flex;gap:12px;justify-content:space-between;align-items:center;margin:2px 0 14px}
+h1{font-size:24px;margin:0}.muted{color:var(--sub);font-size:13px}.toolbar{display:flex;gap:8px;flex-wrap:wrap}
+button,.filebtn{border:0;border-radius:12px;padding:10px 13px;background:#fff;color:var(--text);box-shadow:0 1px 3px #0001;font-weight:600;font-size:14px}
+button.primary{background:var(--blue);color:#fff}.danger{color:var(--red)} input[type=file]{display:none}
+.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-bottom:14px}
+.kpi{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px}
+.kpi .v{font-size:22px;font-weight:750;margin-top:5px;font-variant-numeric:tabular-nums}
+.kpi .s{font-size:12px;color:var(--sub)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:18px;overflow:hidden}
+.panelhead{padding:13px 14px;border-bottom:1px solid var(--line);display:flex;gap:10px;justify-content:space-between;align-items:center}
+.search{min-width:220px;max-width:360px;width:40%;padding:9px 11px;border:1px solid var(--line);border-radius:10px;font-size:14px}
+.tablewrap{overflow:auto;-webkit-overflow-scrolling:touch}
+table{width:100%;border-collapse:separate;border-spacing:0;min-width:1120px}
+th{position:sticky;top:0;background:#f8fafc;color:#4b5563;font-size:12px;text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);z-index:1}
+td{padding:7px 8px;border-bottom:1px solid #eef0f3;font-size:13px;vertical-align:middle}
+td input{width:100%;min-width:80px;border:1px solid transparent;border-radius:8px;padding:7px 6px;background:transparent;font:inherit;color:inherit}
+td input:focus{outline:none;border-color:#9bc8f2;background:#f8fbff}
+td.calc{font-variant-numeric:tabular-nums;white-space:nowrap}
+.pos{color:var(--green);font-weight:650}.neg{color:var(--red);font-weight:650}.warn{color:var(--amber)}
+.del{padding:7px 10px;border-radius:9px;background:#fff1f0;color:#b42318;box-shadow:none}
+.mobilelist{display:none}
+.item{background:#fff;border:1px solid var(--line);border-radius:16px;padding:13px;margin-bottom:10px}
+.itemtop{display:flex;justify-content:space-between;gap:10px;align-items:start}
+.itemname{font-weight:700;line-height:1.3}.badge{font-size:11px;background:#edf5ff;color:#075aa6;border-radius:999px;padding:4px 7px;white-space:nowrap}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+.field label{font-size:11px;color:var(--sub);display:block;margin:0 0 3px}
+.field input{width:100%;border:1px solid var(--line);border-radius:9px;padding:8px;font-size:14px;background:#fff}
+.result{display:grid;grid-template-columns:repeat(3,1fr);gap:7px;margin-top:9px}
+.result div{background:#f7f9fc;border-radius:9px;padding:8px}.result small{display:block;color:var(--sub);font-size:10px}.result b{font-size:13px}
+.footer{font-size:12px;color:var(--sub);padding:12px 2px;line-height:1.55}
+.toast{position:fixed;left:50%;bottom:calc(20px + env(safe-area-inset-bottom));transform:translateX(-50%);background:#17202ae9;color:white;padding:10px 14px;border-radius:12px;font-size:13px;opacity:0;pointer-events:none;transition:.2s}.toast.show{opacity:1}
+@media(max-width:760px){
+ .app{padding-left:10px;padding-right:10px}
+ header{align-items:flex-start;flex-direction:column} h1{font-size:22px}
+ .cards{grid-template-columns:1fr 1fr}.kpi .v{font-size:18px}
+ .panel{border:0;background:transparent;overflow:visible}.panelhead{background:#fff;border:1px solid var(--line);border-radius:14px;margin-bottom:10px}
+ .search{width:100%;min-width:0}.tablewrap{display:none}.mobilelist{display:block}
+ .toolbar button,.toolbar .filebtn{padding:9px 11px}
+}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+  <div><h1>理财年化收益计算器</h1><div class="muted">按原 Excel Sheet1 口径自动计算 · 数据仅保存在本机浏览器</div></div>
+  <div class="toolbar">
+    <button class="primary" id="addBtn">＋ 新增产品</button>
+    <button id="exportCsv">导出 CSV</button>
+    <button id="exportJson">备份数据</button>
+    <label class="filebtn">恢复备份<input id="importJson" type="file" accept=".json,application/json"></label>
+    <button id="resetBtn" class="danger">恢复初始数据</button>
+  </div>
+</header>
+
+<section class="cards">
+ <div class="kpi"><div class="s">总原始金额</div><div class="v" id="kPrincipal">¥0.00</div></div>
+ <div class="kpi"><div class="s">总现有金额</div><div class="v" id="kCurrent">¥0.00</div></div>
+ <div class="kpi"><div class="s">累计收益</div><div class="v" id="kProfit">¥0.00</div></div>
+ <div class="kpi"><div class="s">本金加权估算年化</div><div class="v" id="kAnnual">0.00%</div></div>
+</section>
+
+<section class="panel">
+ <div class="panelhead">
+   <div><b>产品明细</b><div class="muted">计算日期留空时自动使用今天</div></div>
+   <input id="search" class="search" placeholder="搜索银行 / 产品名称">
+ </div>
+ <div class="tablewrap">
+  <table>
+   <thead><tr>
+    <th>编号</th><th>购买日期</th><th>产品名称</th><th style="min-width:240px">基金名称</th><th>期限/天</th><th>计算日期</th>
+    <th>持有/天</th><th>原始金额</th><th>现有金额</th><th>估算年化</th><th>万份收益</th><th></th>
+   </tr></thead>
+   <tbody id="tbody"></tbody>
+  </table>
+ </div>
+ <div id="mobilelist" class="mobilelist"></div>
+</section>
+<div class="footer">
+  公式：持有天数 = 计算日期 − 购买日期；估算年化收益率 =（现有金额 − 原始金额）÷ 原始金额 ÷ 持有天数 × 365；
+  万份收益 =（现有金额 − 原始金额）÷ 原始金额 × 10000 ÷ 持有天数。仅用于收益记录和测算，不构成投资建议。
+</div>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+const INITIAL = [{"id": "3", "purchaseDate": "2025-03-19", "institution": "邮储银行", "fundName": "灵活鸿运最短持有14天8号B", "term": 14, "calcDate": "", "principal": 10000, "current": 10431.54}, {"id": "4", "purchaseDate": "2025-03-20", "institution": "邮储银行", "fundName": "灵活鸿运最短持有180天2号B", "term": 180, "calcDate": "", "principal": 9990, "current": 10368.14}, {"id": "5", "purchaseDate": "2025-04-05", "institution": "邮储银行", "fundName": "优盛鸿锦7天5号B", "term": 7, "calcDate": "", "principal": 10000, "current": 10427.09}, {"id": "7", "purchaseDate": "2025-05-17", "institution": "邮储银行", "fundName": "优盛鸿锦7天6号ESG优选B", "term": 7, "calcDate": "", "principal": 10022.31, "current": 10493.77}, {"id": "8", "purchaseDate": "2025-04-14", "institution": "邮储银行", "fundName": "鸿运7天8号B", "term": 7, "calcDate": "", "principal": 10000, "current": 10443.59}, {"id": "6", "purchaseDate": "2025-04-14", "institution": "邮储银行", "fundName": "鸿运日开19号B", "term": 2, "calcDate": "", "principal": 10000, "current": 10536}, {"id": "11", "purchaseDate": "2025-09-16", "institution": "邮储银行", "fundName": "灵活鸿运最短持有180天2号A", "term": 180, "calcDate": "", "principal": 59528, "current": 60585.32}, {"id": "", "purchaseDate": "2025-12-19", "institution": "邮储银行", "fundName": "灵活鸿运最短持有180天2号A", "term": 14, "calcDate": "", "principal": 10000, "current": 10092.26}, {"id": "", "purchaseDate": "2026-08-20", "institution": "邮储银行", "fundName": "日日红——灵活-鸿运日开19号A", "term": 1, "calcDate": "", "principal": 15000, "current": 15009.51}, {"id": "", "purchaseDate": "2026-08-20", "institution": "邮储银行", "fundName": "周周红——优盛鸿锦最短持有7天27号A日开19号A", "term": 7, "calcDate": "", "principal": 10000, "current": 10017.55}, {"id": "", "purchaseDate": "2025-12-19", "institution": "邮储银行", "fundName": "灵活鸿运最短持有14天8号A", "term": "", "calcDate": "", "principal": 10000, "current": 10105.71}, {"id": "", "purchaseDate": "2026-08-13", "institution": "邮储银行", "fundName": "鸿运日开23号A", "term": "", "calcDate": "", "principal": 10000, "current": 10025.38}, {"id": "", "purchaseDate": "2026-08-20", "institution": "邮储银行", "fundName": "灵活优盛鸿锦7天30号A", "term": "", "calcDate": "", "principal": 72879, "current": 72950.06}];
+const KEY='financeAnnualYield_v1';
+let rows = load();
+
+function today(){ return new Date().toISOString().slice(0,10); }
+function load(){ try{ const x=JSON.parse(localStorage.getItem(KEY)); return Array.isArray(x)?x:structuredClone(INITIAL)}catch(e){return structuredClone(INITIAL)}}
+function save(){ localStorage.setItem(KEY,JSON.stringify(rows)); }
+function num(v){ const n=parseFloat(v); return Number.isFinite(n)?n:0; }
+function daysBetween(a,b){
+ if(!a||!b) return 0;
+ const x=new Date(a+'T00:00:00'), y=new Date(b+'T00:00:00');
+ return Math.max(0,Math.round((y-x)/86400000));
+}
+function calc(r){
+ const d=daysBetween(r.purchaseDate,r.calcDate||today()), p=num(r.principal), c=num(r.current), profit=c-p;
+ const annual=(d>0&&p!==0)?profit/p/d*365:null;
+ const per10k=(d>0&&p!==0)?profit/p*10000/d:null;
+ return {d,p,c,profit,annual,per10k};
+}
+function money(v){return new Intl.NumberFormat('zh-CN',{style:'currency',currency:'CNY',minimumFractionDigits:2}).format(v||0)}
+function pct(v){return v==null?'—':(v*100).toFixed(2)+'%'}
+function fixed(v){return v==null?'—':v.toFixed(4)}
+function cls(v){return v>0?'pos':v<0?'neg':''}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+
+function update(i,key,val){
+ if(['term','principal','current'].includes(key)) rows[i][key]=val===''?'':Number(val);
+ else rows[i][key]=val;
+ save(); render();
+}
+function del(i){ if(confirm('删除这条产品记录？')){rows.splice(i,1);save();render();}}
+function add(){
+ rows.unshift({id:'',purchaseDate:today(),institution:'邮储银行',fundName:'',term:'',calcDate:'',principal:10000,current:10000});
+ save(); render(); window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function summary(filtered){
+ let tp=0,tc=0,profit=0,annualNumerator=0,annualWeight=0;
+ filtered.forEach(r=>{const c=calc(r);tp+=c.p;tc+=c.c;profit+=c.profit;if(c.annual!=null&&c.p>0){annualNumerator+=c.annual*c.p;annualWeight+=c.p}});
+ document.querySelector('#kPrincipal').textContent=money(tp);
+ document.querySelector('#kCurrent').textContent=money(tc);
+ const kp=document.querySelector('#kProfit');kp.textContent=money(profit);kp.className='v '+cls(profit);
+ document.querySelector('#kAnnual').textContent=annualWeight?pct(annualNumerator/annualWeight):'—';
+}
+
+function render(){
+ const q=document.querySelector('#search').value.trim().toLowerCase();
+ const indices=rows.map((r,i)=>({r,i})).filter(x=>!q||(`${x.r.institution} ${x.r.fundName} ${x.r.id}`).toLowerCase().includes(q));
+ summary(indices.map(x=>x.r));
+
+ document.querySelector('#tbody').innerHTML=indices.map(({r,i})=>{
+   const c=calc(r);
+   return `<tr>
+   <td><input value="${esc(r.id)}" oninput="update(${i},'id',this.value)"></td>
+   <td><input type="date" value="${esc(r.purchaseDate)}" onchange="update(${i},'purchaseDate',this.value)"></td>
+   <td><input value="${esc(r.institution)}" oninput="update(${i},'institution',this.value)"></td>
+   <td><input value="${esc(r.fundName)}" oninput="update(${i},'fundName',this.value)"></td>
+   <td><input type="number" inputmode="numeric" value="${esc(r.term)}" oninput="update(${i},'term',this.value)"></td>
+   <td><input type="date" value="${esc(r.calcDate)}" onchange="update(${i},'calcDate',this.value)"></td>
+   <td class="calc">${c.d||'—'}</td>
+   <td><input type="number" inputmode="decimal" step="0.01" value="${esc(r.principal)}" oninput="update(${i},'principal',this.value)"></td>
+   <td><input type="number" inputmode="decimal" step="0.01" value="${esc(r.current)}" oninput="update(${i},'current',this.value)"></td>
+   <td class="calc ${cls(c.annual||0)}">${pct(c.annual)}</td>
+   <td class="calc ${cls(c.per10k||0)}">${fixed(c.per10k)}</td>
+   <td><button class="del" onclick="del(${i})">删除</button></td></tr>`;
+ }).join('');
+
+ document.querySelector('#mobilelist').innerHTML=indices.map(({r,i})=>{
+  const c=calc(r);
+  return `<div class="item">
+   <div class="itemtop"><div><div class="itemname">${esc(r.fundName||'未命名产品')}</div><div class="muted">${esc(r.institution||'')} ${r.id?(' · 编号 '+esc(r.id)):''}</div></div><span class="badge">${r.term?esc(r.term)+'天':'灵活期限'}</span></div>
+   <div class="grid">
+    <div class="field"><label>购买日期</label><input type="date" value="${esc(r.purchaseDate)}" onchange="update(${i},'purchaseDate',this.value)"></div>
+    <div class="field"><label>计算日期（留空=今天）</label><input type="date" value="${esc(r.calcDate)}" onchange="update(${i},'calcDate',this.value)"></div>
+    <div class="field"><label>原始金额</label><input type="number" inputmode="decimal" step="0.01" value="${esc(r.principal)}" oninput="update(${i},'principal',this.value)"></div>
+    <div class="field"><label>现有金额</label><input type="number" inputmode="decimal" step="0.01" value="${esc(r.current)}" oninput="update(${i},'current',this.value)"></div>
+    <div class="field"><label>产品名称</label><input value="${esc(r.institution)}" oninput="update(${i},'institution',this.value)"></div>
+    <div class="field"><label>期限/天</label><input type="number" inputmode="numeric" value="${esc(r.term)}" oninput="update(${i},'term',this.value)"></div>
+   </div>
+   <div class="field" style="margin-top:8px"><label>基金名称</label><input value="${esc(r.fundName)}" oninput="update(${i},'fundName',this.value)"></div>
+   <div class="result">
+    <div><small>持有天数</small><b>${c.d||'—'}</b></div>
+    <div><small>估算年化</small><b class="${cls(c.annual||0)}">${pct(c.annual)}</b></div>
+    <div><small>万份收益</small><b class="${cls(c.per10k||0)}">${fixed(c.per10k)}</b></div>
+   </div>
+   <div style="text-align:right;margin-top:8px"><button class="del" onclick="del(${i})">删除记录</button></div>
+  </div>`;
+ }).join('');
+}
+function toast(s){const t=document.querySelector('#toast');t.textContent=s;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),1800)}
+function download(name,content,type){
+ const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([content],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)
+}
+document.querySelector('#addBtn').onclick=add;
+document.querySelector('#search').oninput=render;
+document.querySelector('#exportJson').onclick=()=>download('理财收益备份_'+today()+'.json',JSON.stringify(rows,null,2),'application/json');
+document.querySelector('#exportCsv').onclick=()=>{
+ const head=['编号','购买日期','产品名称','基金名称','期限/天','计算日期','持有时间/天','原始金额','现有金额','估算年收益率','万份收益'];
+ const lines=[head,...rows.map(r=>{const c=calc(r);return [r.id,r.purchaseDate,r.institution,r.fundName,r.term,r.calcDate||today(),c.d,r.principal,r.current,c.annual==null?'':c.annual,c.per10k==null?'':c.per10k]})]
+ .map(a=>a.map(v=>`"${String(v??'').replaceAll('"','""')}"`).join(','));
+ download('理财收益明细_'+today()+'.csv','\ufeff'+lines.join('\n'),'text/csv;charset=utf-8');toast('CSV 已导出');
+};
+document.querySelector('#importJson').onchange=async e=>{
+ const f=e.target.files[0];if(!f)return;
+ try{const x=JSON.parse(await f.text());if(!Array.isArray(x))throw 0;rows=x;save();render();toast('备份已恢复')}catch{alert('备份文件格式不正确')}
+ e.target.value='';
+};
+document.querySelector('#resetBtn').onclick=()=>{if(confirm('恢复为从原 Excel 导入的初始数据？当前编辑内容会被覆盖。')){rows=structuredClone(INITIAL);save();render();}};
+render();
+if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(()=>{});
+</script>
+</body></html>

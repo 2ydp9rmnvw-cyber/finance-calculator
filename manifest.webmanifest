@@ -1,0 +1,9 @@
+{
+  "name": "理财年化收益计算器",
+  "short_name": "理财收益",
+  "start_url": "./index.html",
+  "display": "standalone",
+  "background_color": "#f5f7fb",
+  "theme_color": "#0b6bcb",
+  "description": "按 Excel Sheet1 口径计算理财产品年化收益率与万份收益"
+}
