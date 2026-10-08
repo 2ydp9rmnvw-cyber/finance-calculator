@@ -77,7 +77,7 @@ td.calc{font-variant-numeric:tabular-nums;white-space:nowrap}
 
 <section class="panel">
  <div class="panelhead">
-   <div><b>产品明细</b><div class="muted">计算日期留空时自动使用今天</div></div>
+   <div><b>产品明细</b><div class="muted">计算日期留空时自动使用今天 · 编号从小到大排序</div></div>
    <input id="search" class="search" placeholder="搜索银行 / 产品名称">
  </div>
  <div class="tablewrap">
@@ -103,7 +103,7 @@ const INITIAL = [{"id": "3", "purchaseDate": "2025-03-19", "institution": "邮�
 const KEY='financeAnnualYield_v1';
 let rows = load();
 
-function today(){ return new Date().toISOString().slice(0,10); }
+function today(){const d=new Date();return [d.getFullYear(),String(d.getMonth()+1).padStart(2,'0'),String(d.getDate()).padStart(2,'0')].join('-');}
 function load(){ try{ const x=JSON.parse(localStorage.getItem(KEY)); return Array.isArray(x)?x:structuredClone(INITIAL)}catch(e){return structuredClone(INITIAL)}}
 function save(){ localStorage.setItem(KEY,JSON.stringify(rows)); }
 function num(v){ const n=parseFloat(v); return Number.isFinite(n)?n:0; }
@@ -124,10 +124,33 @@ function fixed(v){return v==null?'—':v.toFixed(4)}
 function cls(v){return v>0?'pos':v<0?'neg':''}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
 
+// 数字编号优先升序；空编号在最后；相同编号保持原始先后顺序。
+function orderedIndices(){
+ return rows.map((r,i)=>({r,i})).sort((a,b)=>{
+  const x=String(a.r.id??'').trim(), y=String(b.r.id??'').trim();
+  if(!x && !y)return a.i-b.i;
+  if(!x)return 1;
+  if(!y)return -1;
+  const xn=Number(x),yn=Number(y);
+  if(Number.isFinite(xn)&&Number.isFinite(yn)&&xn!==yn)return xn-yn;
+  return x.localeCompare(y,'zh-CN',{numeric:true}) || a.i-b.i;
+ });
+}
+function finishIdEdit(){render();}
 function update(i,key,val){
  if(['term','principal','current'].includes(key)) rows[i][key]=val===''?'':Number(val);
  else rows[i][key]=val;
- save(); render();
+ save();
+ // 输入期间只更新计算值，不重建输入框，保证 iOS 键盘与中文输入法连续输入。
+ const c=calc(rows[i]);
+ document.querySelectorAll(`[data-record="${i}"]`).forEach(el=>{
+   const write=(name,value)=>{ const t=el.querySelector(`[data-result="${name}"]`);if(t){t.textContent=value;if(name!=='days')t.className=(el.tagName==='TR'?'calc ':'')+cls(name==='annual'?(c.annual||0):(c.per10k||0));}};
+   write('days',c.d||'—');write('annual',pct(c.annual));write('per10k',fixed(c.per10k));
+   const nm=el.querySelector('.itemname');if(nm)nm.textContent=rows[i].fundName||'未命名产品';
+   const bd=el.querySelector('.badge');if(bd)bd.textContent=rows[i].term?rows[i].term+'天':'灵活期限';
+ });
+ const q=document.querySelector('#search').value.trim().toLowerCase();
+ summary(rows.filter(r=>!q||(`${r.institution} ${r.fundName} ${r.id}`).toLowerCase().includes(q)));
 }
 function del(i){ if(confirm('删除这条产品记录？')){rows.splice(i,1);save();render();}}
 function add(){
@@ -146,31 +169,32 @@ function summary(filtered){
 
 function render(){
  const q=document.querySelector('#search').value.trim().toLowerCase();
- const indices=rows.map((r,i)=>({r,i})).filter(x=>!q||(`${x.r.institution} ${x.r.fundName} ${x.r.id}`).toLowerCase().includes(q));
+ const indices=orderedIndices().filter(x=>!q||(`${x.r.institution} ${x.r.fundName} ${x.r.id}`).toLowerCase().includes(q));
  summary(indices.map(x=>x.r));
 
  document.querySelector('#tbody').innerHTML=indices.map(({r,i})=>{
    const c=calc(r);
-   return `<tr>
-   <td><input value="${esc(r.id)}" oninput="update(${i},'id',this.value)"></td>
+   return `<tr data-record="${i}">
+   <td><input value="${esc(r.id)}" oninput="update(${i},'id',this.value)" onblur="finishIdEdit()"></td>
    <td><input type="date" value="${esc(r.purchaseDate)}" onchange="update(${i},'purchaseDate',this.value)"></td>
    <td><input value="${esc(r.institution)}" oninput="update(${i},'institution',this.value)"></td>
    <td><input value="${esc(r.fundName)}" oninput="update(${i},'fundName',this.value)"></td>
    <td><input type="number" inputmode="numeric" value="${esc(r.term)}" oninput="update(${i},'term',this.value)"></td>
    <td><input type="date" value="${esc(r.calcDate)}" onchange="update(${i},'calcDate',this.value)"></td>
-   <td class="calc">${c.d||'—'}</td>
+   <td class="calc" data-result="days">${c.d||'—'}</td>
    <td><input type="number" inputmode="decimal" step="0.01" value="${esc(r.principal)}" oninput="update(${i},'principal',this.value)"></td>
    <td><input type="number" inputmode="decimal" step="0.01" value="${esc(r.current)}" oninput="update(${i},'current',this.value)"></td>
-   <td class="calc ${cls(c.annual||0)}">${pct(c.annual)}</td>
-   <td class="calc ${cls(c.per10k||0)}">${fixed(c.per10k)}</td>
+   <td class="calc ${cls(c.annual||0)}" data-result="annual">${pct(c.annual)}</td>
+   <td class="calc ${cls(c.per10k||0)}" data-result="per10k">${fixed(c.per10k)}</td>
    <td><button class="del" onclick="del(${i})">删除</button></td></tr>`;
  }).join('');
 
  document.querySelector('#mobilelist').innerHTML=indices.map(({r,i})=>{
   const c=calc(r);
-  return `<div class="item">
+  return `<div class="item" data-record="${i}">
    <div class="itemtop"><div><div class="itemname">${esc(r.fundName||'未命名产品')}</div><div class="muted">${esc(r.institution||'')} ${r.id?(' · 编号 '+esc(r.id)):''}</div></div><span class="badge">${r.term?esc(r.term)+'天':'灵活期限'}</span></div>
    <div class="grid">
+    <div class="field"><label>编号（填写后自动排序）</label><input inputmode="numeric" value="${esc(r.id)}" oninput="update(${i},'id',this.value)" onblur="finishIdEdit()"></div>
     <div class="field"><label>购买日期</label><input type="date" value="${esc(r.purchaseDate)}" onchange="update(${i},'purchaseDate',this.value)"></div>
     <div class="field"><label>计算日期（留空=今天）</label><input type="date" value="${esc(r.calcDate)}" onchange="update(${i},'calcDate',this.value)"></div>
     <div class="field"><label>原始金额</label><input type="number" inputmode="decimal" step="0.01" value="${esc(r.principal)}" oninput="update(${i},'principal',this.value)"></div>
@@ -180,9 +204,9 @@ function render(){
    </div>
    <div class="field" style="margin-top:8px"><label>基金名称</label><input value="${esc(r.fundName)}" oninput="update(${i},'fundName',this.value)"></div>
    <div class="result">
-    <div><small>持有天数</small><b>${c.d||'—'}</b></div>
-    <div><small>估算年化</small><b class="${cls(c.annual||0)}">${pct(c.annual)}</b></div>
-    <div><small>万份收益</small><b class="${cls(c.per10k||0)}">${fixed(c.per10k)}</b></div>
+    <div><small>持有天数</small><b data-result="days">${c.d||'—'}</b></div>
+    <div><small>估算年化</small><b class="${cls(c.annual||0)}" data-result="annual">${pct(c.annual)}</b></div>
+    <div><small>万份收益</small><b class="${cls(c.per10k||0)}" data-result="per10k">${fixed(c.per10k)}</b></div>
    </div>
    <div style="text-align:right;margin-top:8px"><button class="del" onclick="del(${i})">删除记录</button></div>
   </div>`;
@@ -197,7 +221,7 @@ document.querySelector('#search').oninput=render;
 document.querySelector('#exportJson').onclick=()=>download('理财收益备份_'+today()+'.json',JSON.stringify(rows,null,2),'application/json');
 document.querySelector('#exportCsv').onclick=()=>{
  const head=['编号','购买日期','产品名称','基金名称','期限/天','计算日期','持有时间/天','原始金额','现有金额','估算年收益率','万份收益'];
- const lines=[head,...rows.map(r=>{const c=calc(r);return [r.id,r.purchaseDate,r.institution,r.fundName,r.term,r.calcDate||today(),c.d,r.principal,r.current,c.annual==null?'':c.annual,c.per10k==null?'':c.per10k]})]
+ const lines=[head,...orderedIndices().map(({r})=>{const c=calc(r);return [r.id,r.purchaseDate,r.institution,r.fundName,r.term,r.calcDate||today(),c.d,r.principal,r.current,c.annual==null?'':c.annual,c.per10k==null?'':c.per10k]})]
  .map(a=>a.map(v=>`"${String(v??'').replaceAll('"','""')}"`).join(','));
  download('理财收益明细_'+today()+'.csv','\ufeff'+lines.join('\n'),'text/csv;charset=utf-8');toast('CSV 已导出');
 };
@@ -208,6 +232,6 @@ document.querySelector('#importJson').onchange=async e=>{
 };
 document.querySelector('#resetBtn').onclick=()=>{if(confirm('恢复为从原 Excel 导入的初始数据？当前编辑内容会被覆盖。')){rows=structuredClone(INITIAL);save();render();}};
 render();
-if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').catch(()=>{});
+if('serviceWorker' in navigator && location.protocol.startsWith('http')) navigator.serviceWorker.register('sw.js').then(r=>r.update()).catch(()=>{});
 </script>
 </body></html>
