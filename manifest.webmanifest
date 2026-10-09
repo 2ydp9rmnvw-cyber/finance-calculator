@@ -1,9 +1,10 @@
 {
-  "name": "理财年化收益计算器",
-  "short_name": "理财收益",
+  "name": "个人理财管理",
+  "short_name": "理财管理",
   "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#f5f7fb",
-  "theme_color": "#0b6bcb",
-  "description": "按 Excel Sheet1 口径计算理财产品年化收益率与万份收益"
+  "background_color": "#f3f6fa",
+  "theme_color": "#125d9b",
+  "description": "理财产品年化收益、定期存款和历史账面金额管理"
 }
